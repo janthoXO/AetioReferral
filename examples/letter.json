@@ -1,0 +1,20 @@
+{
+  "language": "de",
+  "recipient_specialty": "Gastroenterologie",
+  "reason": "Bitte um Ösophagogastroduodenoskopie und Mitbeurteilung.",
+  "request": "zur weiteren Abklärung und Mitbehandlung",
+  "urgent": true,
+  "suspected_diagnosis": "Ulcus ventriculi (K25.9)",
+  "diagnoses": "Arterielle Hypertonie (I10.90)\nZ. n. Appendektomie 1998",
+  "history": "Seit etwa zwei Monaten postprandiale Oberbauchbeschwerden, ungewollter Gewichtsverlust von 4 kg.\n\nWegen Knieschmerzen seit drei Monaten fast täglich Ibuprofen. Fieber und Nachtschweiß werden verneint.",
+  "findings": "Druckschmerz im Epigastrium. Labor: Hb 11,2 g/dl, CRP und Leberwerte im Normbereich. Sonographie des Abdomens ohne richtungsweisenden Befund.",
+  "prior_treatment": "Pantoprazol 40 mg seit zwei Wochen, ohne wesentliche Besserung.",
+  "medication": "Ramipril 5 mg 1-0-0\nIbuprofen 600 mg bei Bedarf\nPantoprazol 40 mg 1-0-0",
+  "allergies": "keine bekannt",
+  "extra_sections": [{"heading": "Sozialanamnese", "text": "Verheiratet, Bürokauffrau, Nichtraucherin."}],
+  "attachments": ["Laborbefund vom 14.10.2026"],
+  "patient": {"sex": "f", "age": 54},
+  "sender": {"specialty": "Allgemeinmedizin"},
+  "recipient": {},
+  "date": "2026-10-20"
+}

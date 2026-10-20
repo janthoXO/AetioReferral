@@ -1,0 +1,61 @@
+[project]
+name = "aetioreferral"
+version = "0.1.0"
+description = "Synthetic medical referral letter generator: realistic German Überweisungsbrief / Arztbrief PDFs via MCP server and CLI, for medical education and document AI."
+keywords = [
+    "synthetic-data", "medical-referral-letter", "arztbrief", "ueberweisung", "medical-education",
+    "mcp", "mcp-server", "pdf-generation", "typst", "llm", "pydantic-ai", "healthcare", "document-ai",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Education",
+    "Intended Audience :: Healthcare Industry",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: German",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Topic :: Text Processing :: Markup",
+]
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "src/aetioreferral/template/fonts/OFL-*.txt"]
+authors = [
+    { name = "dennis", email = "dp.jandow@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "anyio>=4.15.1",
+    "faker>=40.43.0",
+    "mcp>=2.3.0",
+    "pydantic>=2.14.1",
+    "pydantic-ai-slim[anthropic,google,openai]>=2.58.0",
+    "pydantic-settings>=2.16.1",
+    "typst>=0.15.0",
+]
+
+[project.urls]
+Repository = "https://github.com/janthoXO/AetioReferral"
+Issues = "https://github.com/janthoXO/AetioReferral/issues"
+Documentation = "https://github.com/janthoXO/AetioReferral/blob/main/README-DEV.md"
+
+[project.scripts]
+aetioreferral = "aetioreferral.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.13.3,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pypdf>=6.21.1",
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "ruff>=0.17.1",
+]
+
+[tool.pyright]
+include = ["src"]
+
+[tool.ruff]
+line-length = 140

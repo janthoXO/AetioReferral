@@ -1,0 +1,33 @@
+# AetioReferral
+
+> AetioReferral is an open-source Python service that generates synthetic medical referral letters as PDF. The baseline is the German Überweisungsbrief (Arztbrief from a general practitioner to a specialist); any language works once it has a locale file. It runs as an MCP server for LLM clients and as a command-line tool. Callers either pass the letter content as structured JSON, or pass a free-text description and let a configured LLM write the letter.
+
+Key facts:
+
+- Audience: medical educators, virtual-patient and e-learning platforms, researchers who need realistic synthetic clinical documents (for example for document AI, OCR or information-extraction datasets).
+- Not for clinical use: every letter is fictional. Patient, doctor and practice details are generated with Faker; no real patient data is used.
+- Letter format: DIN 5008 business letter with letterhead, address field, patient line, Verdachtsdiagnose (suspected diagnosis), Diagnosen, Fragestellung, Anamnese, Befunde, Medikation, Allergien, signature and practice stamp. Empty sections are left out.
+- Input: `LetterSpec` JSON; every section is plain text. Patient, sender and recipient are optional and filled field by field; `patient: null` omits the patient block.
+- Reproducible: the same input and seed produce the same letter.
+- Languages: German (`de`) and English (`en`); one TOML locale file per language, region tags fall back to the base language.
+- LLM (optional): any pydantic-ai provider via `LLM_PROVIDER`, `LLM_MODEL`, `LLM_URL`, `LLM_API_KEY` or a `.env` file, e.g. Anthropic, OpenAI, Google Gemini, OpenRouter, Ollama. Without it, the free-text generate path does not exist.
+- Interfaces: MCP tools `render_referral_letter` and `generate_referral_letter` (stdio or streamable HTTP); CLI commands `render`, `generate`, `mcp`.
+- License: MIT.
+- Stack: Python 3.13, uv, pydantic, pydantic-settings, pydantic-ai, official MCP Python SDK, Typst, Faker.
+- Sister project: AetioMed (https://github.com/janthoXO/AetioMed), an LLM-based synthetic medical case generator that embeds these letters in its chief complaint.
+
+## Docs
+
+- [README](https://github.com/janthoXO/AetioReferral/blob/main/README.md): what AetioReferral is, features, use cases, quick start, example letter, FAQ
+- [Developer Guide](https://github.com/janthoXO/AetioReferral/blob/main/README-DEV.md): architecture, letter model, identity filling, rendering, localisation, LLM drafter, MCP server, CLI, testing, AetioMed integration
+
+## API
+
+- [Letter schema](https://github.com/janthoXO/AetioReferral/blob/main/src/aetioreferral/letter.py): pydantic `LetterSpec`, the input of `render_referral_letter`
+- [Example input](https://github.com/janthoXO/AetioReferral/blob/main/examples/letter.json): a complete German referral letter request
+- [German locale](https://github.com/janthoXO/AetioReferral/blob/main/src/aetioreferral/locales/de.toml): every label and phrase the service adds itself
+
+## Optional
+
+- [Example letter image](https://github.com/janthoXO/AetioReferral/blob/main/assets/example-letter.png): first page of the rendered example
+- [Tracking issue](https://github.com/janthoXO/AetioReferral/issues/22): design decisions and roadmap
