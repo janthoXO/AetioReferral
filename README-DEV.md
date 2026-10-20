@@ -368,7 +368,11 @@ Covered:
 - the MCP render tool returns a PDF blob, the completed letter and the seed; the generate tool exists only with a drafter;
 - the CLI shows `generate` only with LLM configuration.
 
-Not covered: the real `PydanticAIDrafter` (needs a live model), the HTTP transport, and the CLI `render` file and stdin paths.
+Not covered: the real `PydanticAIDrafter` (needs a live model), the HTTP transport, and the CLI `render` stdin path.
+
+### Continuous integration
+
+`.github/workflows/build.yml` runs on every pull request that touches code, tests, examples, `pyproject.toml`, `uv.lock` or the workflow itself. In order: `uv sync --locked` (fails if `uv.lock` is out of date), `ruff format --check`, `ruff check`, `pyright`, `pytest`, a CLI render of `examples/letter.json` (covers the CLI file path), and `uv build`.
 
 ## Design decisions
 

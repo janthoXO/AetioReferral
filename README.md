@@ -2,6 +2,7 @@
 
 **AetioReferral is an open-source Python MCP server and CLI that generates realistic synthetic medical referral letters as PDF: a German Überweisungsbrief (Arztbrief) from a general practitioner to a specialist, or the same letter in any other language with a locale file. It is built for medical education, virtual-patient platforms and document-AI datasets.**
 
+[![Build](https://github.com/janthoXO/AetioReferral/actions/workflows/build.yml/badge.svg)](https://github.com/janthoXO/AetioReferral/actions/workflows/build.yml)
 ![Python 3.13](https://img.shields.io/badge/python-3.13-blue)
 ![MCP server](https://img.shields.io/badge/MCP-server-black)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
