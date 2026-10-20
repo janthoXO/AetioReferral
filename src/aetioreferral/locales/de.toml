@@ -1,0 +1,43 @@
+# Every word and convention the service adds itself. Caller content is never translated.
+faker_locale = "de_DE"
+date_format = "%d.%m.%Y"
+identifier_keys = ["BSNR", "LANR"]          # doctor identifiers in the letterhead and stamp; [] for none
+default_sender_specialty = "Allgemeinmedizin"
+doctor_titles = ["Dr. med.", "Dr. med.", ""]
+insurers = ["AOK", "Techniker Krankenkasse", "Barmer", "DAK-Gesundheit", "IKK classic", "KKH"]
+insurance_number_format = "?#########"      # Faker bothify: ? letter, # digit
+
+[labels]
+suspected_diagnosis = "Verdachtsdiagnose"
+diagnoses = "Diagnosen"
+reason = "Fragestellung"
+history = "Anamnese"
+findings = "Befunde"
+prior_treatment = "Bisherige Therapie"
+medication = "Medikation"
+allergies = "Allergien"
+attachments = "Anlagen"
+urgent = "Dringend"
+referral_to = "Überweisung an"
+born = "geb."
+phone = "Tel."
+fax = "Fax"
+insurance_number = "Versichertennr."
+
+[phrases]
+salutation = "Sehr geehrte Kolleginnen und Kollegen,"
+intro = "wir überweisen Ihnen o. g. {patient} {request}."
+intro_without_patient = "hiermit überweisen wir {request}."
+default_request = "zur weiteren Abklärung und Mitbehandlung"
+closing = "Mit freundlichen kollegialen Grüßen"
+practice = "Praxis {doctor}"
+
+[patient_title]
+f = "Frau"
+m = "Herr"
+d = ""
+
+[patient_noun]
+f = "Patientin"
+m = "Patienten"
+d = "Patient*in"

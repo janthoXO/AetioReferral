@@ -1,0 +1,43 @@
+# Every word and convention the service adds itself. Caller content is never translated.
+faker_locale = "en_GB"
+date_format = "%d %B %Y"
+identifier_keys = []                        # no doctor identifiers on UK letters
+default_sender_specialty = "General Practice"
+doctor_titles = ["Dr", "Dr", ""]
+insurers = []                               # UK letters carry no insurer
+insurance_number_format = "### ### ####"    # NHS number shape; Faker bothify: ? letter, # digit
+
+[labels]
+suspected_diagnosis = "Suspected diagnosis"
+diagnoses = "Diagnoses"
+reason = "Reason for referral"
+history = "History"
+findings = "Examination and investigations"
+prior_treatment = "Treatment so far"
+medication = "Medication"
+allergies = "Allergies"
+attachments = "Enclosures"
+urgent = "Urgent"
+referral_to = "Referral to"
+born = "DOB"
+phone = "Tel."
+fax = "Fax"
+insurance_number = "NHS No."
+
+[phrases]
+salutation = "Dear Colleague,"
+intro = "I would be grateful if you could see this {patient} {request}."
+intro_without_patient = "I am writing with a referral {request}."
+default_request = "for further assessment and management"
+closing = "Yours sincerely"
+practice = "{doctor}'s Surgery"
+
+[patient_title]
+f = "Mrs"
+m = "Mr"
+d = "Mx"
+
+[patient_noun]
+f = "patient"
+m = "patient"
+d = "patient"
