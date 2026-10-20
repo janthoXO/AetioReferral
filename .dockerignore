@@ -1,0 +1,14 @@
+.git
+.github
+.venv
+.env
+dist
+docs
+assets
+examples
+tests
+**/__pycache__
+.pytest_cache
+.ruff_cache
+README-DEV.md
+llms.txt

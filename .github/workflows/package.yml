@@ -1,0 +1,68 @@
+name: Package
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "Dockerfile"
+      - ".dockerignore"
+      - ".github/workflows/package.yml"
+  workflow_call:
+    inputs:
+      version:
+        description: "Version to build"
+        default: "0.0.0"
+        required: false
+        type: string
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0 # no moving major tags upstream
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Change version
+        if: ${{ inputs.version }}
+        # Updates pyproject.toml and re-locks, so `uv sync --locked` in the Dockerfile still passes.
+        run: uv version ${{ inputs.version }} --no-sync
+
+      - name: Build Python package
+        run: uv build
+
+      - name: Build Docker Image
+        run: docker build -t aetioreferral:${{ inputs.version || 'latest' }} .
+
+      - name: Smoke test Docker Image
+        run: |
+          docker run --rm -i aetioreferral:${{ inputs.version || 'latest' }} render - -o /dev/stdout --seed 7 \
+            < examples/letter.json > letter.pdf
+          head -c 5 letter.pdf | grep -q '%PDF-'
+
+      - name: Save Docker Image
+        run: docker save aetioreferral:${{ inputs.version || 'latest' }} -o aetioreferral-${{ inputs.version || 'latest' }}.tar
+
+      - name: Upload Docker Image
+        uses: actions/upload-artifact@v7
+        with:
+          name: docker-image-${{ inputs.version || 'latest' }}
+          path: aetioreferral-${{ inputs.version || 'latest' }}.tar
+          if-no-files-found: error
+
+      - name: Upload Python package
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-package-${{ inputs.version || 'latest' }}
+          path: dist/*
+          if-no-files-found: error

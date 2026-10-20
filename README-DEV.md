@@ -370,9 +370,17 @@ Covered:
 
 Not covered: the real `PydanticAIDrafter` (needs a live model), the HTTP transport, and the CLI `render` stdin path.
 
-### Continuous integration
+### Continuous integration and releases
 
 `.github/workflows/build.yml` runs on every pull request that touches code, tests, examples, `pyproject.toml`, `uv.lock` or the workflow itself. In order: `uv sync --locked` (fails if `uv.lock` is out of date), `ruff format --check`, `ruff check`, `pyright`, `pytest`, a CLI render of `examples/letter.json` (covers the CLI file path), and `uv build`.
+
+`.github/workflows/package.yml` runs on pull requests to `main` that touch `src/`, `pyproject.toml`, `uv.lock`, the `Dockerfile` or the workflow, and is reusable through `workflow_call` with a `version` input. It sets the version with `uv version <version> --no-sync` (which re-locks, so `uv sync --locked` in the image still passes), builds the wheel and sdist, builds the Docker image, smoke-tests it by rendering `examples/letter.json` through stdin and stdout, and uploads the image tar and the Python distributions as artifacts.
+
+`.github/workflows/release.yml` runs on `v*` tags and on pushes to `main` that touch `src/`, `pyproject.toml`, `uv.lock`, the `Dockerfile` or the workflow. The composite action `.github/actions/determine-version` takes the version from the tag, or else bumps the patch version of the latest GitHub release (starting at `0.0.1`). The workflow then runs `package.yml`, pushes `ghcr.io/janthoxo/aetioreferral/server:<version>` and `:latest`, and creates a GitHub release with generated notes and the image tar, wheel and sdist attached.
+
+### Docker image
+
+The `Dockerfile` has two stages. The build stage is `debian:trixie-slim` with Debian's own Python 3.13 and a pinned uv binary; it runs `uv sync --locked --no-dev --no-editable` into `/app/.venv`, dependencies first for layer caching. The runtime stage is `gcr.io/distroless/python3-debian13:nonroot`: Python 3.13, no shell, no package manager, non-root user. Both stages use `/usr/bin/python3.13`, so the virtual environment's interpreter link stays valid when copied. The entry point is the `aetioreferral` CLI; the default command is `mcp --http --host 0.0.0.0 --port 8000`. LLM settings come from `-e` or `--env-file`; the image contains no `.env`.
 
 ## Design decisions
 
