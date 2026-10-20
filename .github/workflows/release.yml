@@ -1,0 +1,94 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "Dockerfile"
+      - ".github/workflows/release.yml"
+
+jobs:
+  versioning:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Determine Version
+        id: version
+        uses: ./.github/actions/determine-version
+
+  package:
+    needs: versioning
+    uses: ./.github/workflows/package.yml
+    with:
+      version: ${{ needs.versioning.outputs.version }}
+
+  release:
+    needs: [versioning, package]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Download Docker Image
+        uses: actions/download-artifact@v8
+        with:
+          name: docker-image-${{ needs.versioning.outputs.version }}
+          path: ./artifacts
+
+      - name: Download Python package
+        uses: actions/download-artifact@v8
+        with:
+          name: python-package-${{ needs.versioning.outputs.version }}
+          path: ./artifacts
+
+      - name: Load Docker Image
+        run: |
+          docker load -i ./artifacts/aetioreferral-${{ needs.versioning.outputs.version }}.tar
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to GHCR
+        run: |
+          # GHCR image names must be lowercase.
+          IMAGE_ID=$(echo "ghcr.io/${{ github.repository }}/server" | tr '[:upper:]' '[:lower:]')
+          VERSION="${{ needs.versioning.outputs.version }}"
+
+          echo "IMAGE_ID=$IMAGE_ID"
+          echo "VERSION=$VERSION"
+
+          docker tag "aetioreferral:$VERSION" "$IMAGE_ID:$VERSION"
+          docker tag "aetioreferral:$VERSION" "$IMAGE_ID:latest"
+
+          docker push "$IMAGE_ID:$VERSION"
+          docker push "$IMAGE_ID:latest"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ needs.versioning.outputs.version }}
+          name: v${{ needs.versioning.outputs.version }}
+          files: ./artifacts/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

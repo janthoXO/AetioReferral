@@ -13,6 +13,7 @@ Key facts:
 - LLM (optional): any pydantic-ai provider via `LLM_PROVIDER`, `LLM_MODEL`, `LLM_URL`, `LLM_API_KEY` or a `.env` file, e.g. Anthropic, OpenAI, Google Gemini, OpenRouter, Ollama. Without it, the free-text generate path does not exist.
 - Interfaces: MCP tools `render_referral_letter` and `generate_referral_letter` (stdio or streamable HTTP); CLI commands `render`, `generate`, `mcp`.
 - License: MIT.
+- Distribution: Docker image `ghcr.io/janthoxo/aetioreferral/server` (distroless, MCP over HTTP on port 8000 by default); wheel and sdist attached to GitHub releases.
 - Stack: Python 3.13, uv, pydantic, pydantic-settings, pydantic-ai, official MCP Python SDK, Typst, Faker.
 - Sister project: AetioMed (https://github.com/janthoXO/AetioMed), an LLM-based synthetic medical case generator that embeds these letters in its chief complaint.
 

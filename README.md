@@ -97,6 +97,22 @@ uv run aetioreferral generate "Hausärztin überweist eine 54-jährige Patientin
 
 Run `uv run aetioreferral --help` for all commands.
 
+### Docker
+
+Every release publishes an image to GitHub Container Registry, built on a distroless Python base. By default it runs the MCP server over streamable HTTP on port 8000:
+
+```sh
+docker run --rm -p 8000:8000 --env-file .env ghcr.io/janthoxo/aetioreferral/server
+```
+
+Any CLI command works too, for example rendering from stdin to stdout:
+
+```sh
+docker run --rm -i ghcr.io/janthoxo/aetioreferral/server render - -o /dev/stdout < examples/letter.json > letter.pdf
+```
+
+Each release also attaches the Python wheel and source distribution.
+
 ## Use with Claude and Other MCP Clients
 
 AetioReferral speaks the [Model Context Protocol](https://modelcontextprotocol.io). Add it to Claude Code:
@@ -117,6 +133,8 @@ Or to any client that reads an `mcpServers` config, such as Claude Desktop:
   }
 }
 ```
+
+With Docker instead of a local checkout, use `"command": "docker"` and `"args": ["run", "--rm", "-i", "ghcr.io/janthoxo/aetioreferral/server", "mcp"]`.
 
 For a networked deployment, run `uv run aetioreferral mcp --http` and connect to `http://127.0.0.1:8000/mcp`. The HTTP transport has no authentication yet, so keep it on localhost or a private network.
 
