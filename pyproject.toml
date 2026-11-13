@@ -27,7 +27,9 @@ requires-python = ">=3.13"
 dependencies = [
     "anyio>=4.15.1",
     "faker>=40.43.0",
+    "grpcio>=1.85.1",
     "mcp>=2.3.0",
+    "protobuf>=7.36.2",
     "pydantic>=2.14.1",
     "pydantic-ai-slim[anthropic,google,openai]>=2.58.0",
     "pydantic-settings>=2.16.1",
@@ -48,6 +50,7 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "grpcio-tools>=1.85.1",
     "pypdf>=6.21.1",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
@@ -56,6 +59,8 @@ dev = [
 
 [tool.pyright]
 include = ["src"]
+exclude = ["src/aetioreferral/v1"]
 
 [tool.ruff]
 line-length = 140
+extend-exclude = ["src/aetioreferral/v1"]

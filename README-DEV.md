@@ -1,8 +1,8 @@
 # AetioReferral Developer Guide
 
-This guide covers setup, configuration, architecture, the interfaces (core, MCP server, CLI), localisation, testing and the design decisions behind AetioReferral, a service that renders synthetic medical referral letters as PDF. For what the project is and a quick start, see the [README](README.md).
+This guide covers setup, configuration, architecture, the interfaces (core, MCP server, gRPC server, CLI), localisation, testing and the design decisions behind AetioReferral, a service that renders synthetic medical referral letters as PDF. For what the project is and a quick start, see the [README](README.md).
 
-AetioReferral is stateless: there is no database and no file is written except the PDF you ask for. Two async functions form the core; the CLI and the MCP server are thin adapters over them.
+AetioReferral is stateless: there is no database and no file is written except the PDF you ask for. Two async functions form the core; the CLI, the MCP server and the gRPC server are thin adapters over them.
 
 ## Table of contents
 
@@ -16,6 +16,7 @@ AetioReferral is stateless: there is no database and no file is written except t
 - [Localisation](#localisation)
 - [LLM drafter](#llm-drafter)
 - [MCP server](#mcp-server)
+- [gRPC server](#grpc-server)
 - [CLI](#cli)
 - [AetioMed integration](#aetiomed-integration)
 - [Testing](#testing)
@@ -39,12 +40,15 @@ Typst is a Python wheel (the `typst` package), so no separate Typst install is n
 ### Project layout
 
 ```
+proto/aetioreferral/v1/        referral.proto, the gRPC contract
 pyproject.toml                 dependencies, the `aetioreferral` script, ruff and pyright settings
 .env.example                   ready-made LLM_* blocks (copy to .env)
 examples/letter.json           a complete LetterSpec
 src/aetioreferral/
-├── cli.py                     CLI (pydantic-settings CliApp): render, mcp, and generate when an LLM is configured
+├── cli.py                     CLI (pydantic-settings CliApp): render, mcp, grpc, and generate when an LLM is configured
 ├── mcp_server.py              MCP server: build_server(drafter) registers the tools
+├── grpc_server.py             gRPC server: build_server(drafter), proto <-> LetterSpec conversion
+├── v1/                        generated protobuf and gRPC code (committed, excluded from ruff and pyright)
 ├── service.py                 the core: render_letter and generate_letter
 ├── letter.py                  pydantic models: LetterSpec, PatientIn, DoctorIn, Section, RenderedLetter
 ├── identities.py              fills missing patient/sender/recipient/date with seeded Faker data
@@ -79,12 +83,13 @@ Rules, from `src/aetioreferral/config.py`:
 
 ## Architecture
 
-AetioReferral follows ports and adapters. The core is two async functions. Driving adapters (CLI, MCP server) call it; the one outbound port is the `Drafter`.
+AetioReferral follows ports and adapters. The core is two async functions. Driving adapters (CLI, MCP server, gRPC server) call it; the one outbound port is the `Drafter`.
 
 ```mermaid
 flowchart LR
     subgraph driving["Driving adapters"]
-        CLI["cli.py<br/>render / generate / mcp"]
+        CLI["cli.py<br/>render / generate / mcp / grpc"]
+        GRPC["grpc_server.py<br/>RenderLetter<br/>GenerateLetter"]
         MCP["mcp_server.py<br/>render_referral_letter<br/>generate_referral_letter"]
     end
 
@@ -108,6 +113,8 @@ flowchart LR
     CLI --> GL
     MCP --> RL
     MCP --> GL
+    GRPC --> RL
+    GRPC --> GL
     GL --> D
     D -.implemented by.-> PAI
     D -.implemented by.-> FAKE
@@ -119,7 +126,7 @@ flowchart LR
 
 **Why only the Drafter is a port.** It is the only dependency with two implementations: the real pydantic-ai agent and a fake in tests. It is also the only optional one: when no drafter exists, the generate path is switched off entirely. Faker and Typst are internal modules. They are deterministic and cheap, so tests run them for real instead of faking them, and putting an interface in front of each would add code without adding a second implementation.
 
-`cli.py` and `mcp_server.py` are the only modules that know about the outside world. `cli.drafter()` (cached) builds the `PydanticAIDrafter` from `LlmSettings` or returns `None`, and passes it to `build_server`.
+`cli.py`, `mcp_server.py` and `grpc_server.py` are the only modules that know about the outside world. `cli.drafter()` (cached) builds the `PydanticAIDrafter` from `LlmSettings` or returns `None`, and passes it to both `build_server`s.
 
 ## Core interface
 
@@ -309,14 +316,30 @@ async def main():
 
 For an external server use the same `Client` API with the server's transport; see the MCP SDK documentation.
 
+## gRPC server
+
+The contract is `proto/aetioreferral/v1/referral.proto` (`aetioreferral.v1.ReferralService`): `RenderLetter(RenderLetterRequest)` and `GenerateLetter(GenerateLetterRequest)`, both returning `RenderedLetter` (`pdf` bytes, the completed `letter`, the `seed`). `Letter` mirrors `LetterSpec` field by field, plus `no_patient: true` for `patient: null`; `Sex` is an enum (`SEX_UNSPECIFIED` means generated). A test keeps the field names of `Letter`, `Patient` and `Doctor` equal to the pydantic models.
+
+`grpc_server.py` uses `grpc.aio` (the core is async). `build_server(drafter)` returns the server; the CLI adds the port. Conversion is two functions, `letter_from_proto` and `letter_to_proto`, going through `json_format` and the pydantic models, so validation stays in `LetterSpec`.
+
+**Errors.** `ValidationError` and `ValueError` (invalid letter, unsupported language) are `INVALID_ARGUMENT`. `GenerateLetter` without LLM configuration is `UNIMPLEMENTED`. Typst or other failures are `INTERNAL`.
+
+**Transport.** `aetioreferral grpc` serves plaintext on `127.0.0.1:50051` (`--host`, `--port`). No TLS, authentication, health or reflection service: bind it locally or on a private network.
+
+**Generated code.** `src/aetioreferral/v1/` is committed. Regenerate after any change to the proto; CI fails when it is stale:
+
+```sh
+uv run python -m grpc_tools.protoc -Iproto --python_out=src --pyi_out=src --grpc_python_out=src proto/aetioreferral/v1/referral.proto
+```
+
 ## CLI
 
 `cli.py` uses pydantic-settings' CLI support: `CliApp`, `CliSubCommand` and `CliPositionalArg` on plain pydantic models, wired with a `CliSettingsSource` (`cli_kebab_case=True`, `cli_implicit_flags=True`).
 
-**Two root classes.** `App` has `render` and `mcp`. `AppWithGenerate(App)` adds `generate`. `main()` picks `AppWithGenerate` only when `drafter()` is not `None`, so `generate` does not exist (not in `--help`, not callable) without LLM configuration.
+**Two root classes.** `App` has `render`, `mcp` and `grpc`. `AppWithGenerate(App)` adds `generate`. `main()` picks `AppWithGenerate` only when `drafter()` is not `None`, so `generate` does not exist (not in `--help`, not callable) without LLM configuration.
 
 ```
-aetioreferral {render,mcp}                  # plus generate with LLM_* configured
+aetioreferral {render,mcp,grpc}                 # plus generate with LLM_* configured
 ```
 
 | Command | Arguments and flags |
@@ -324,6 +347,7 @@ aetioreferral {render,mcp}                  # plus generate with LLM_* configure
 | `render FILE` | `FILE` LetterSpec JSON, `-` reads stdin; `-o, --output PATH` PDF to write (required); `--seed INT` reproduce an earlier letter |
 | `generate DESCRIPTION` | `DESCRIPTION` free text; `-o, --output PATH` (required); `--language TAG` BCP 47, default is the description's language; `--seed INT` seed for the identities |
 | `mcp` | `--http` / `--no-http` serve streamable HTTP instead of stdio (default off); `--host STR` (default `127.0.0.1`); `--port INT` (default `8000`) |
+| `grpc` | `--host STR` (default `127.0.0.1`); `--port INT` (default `50051`) |
 
 On success `render` and `generate` write the PDF and print `wrote <path> (seed <n>)` to stderr. stdout stays empty.
 
@@ -341,6 +365,7 @@ For that reason:
 - The Verdachtsdiagnose follows AetioMed's case recipe (janthoXO/AetioMed#216, `02-plan/02-outline/recipe.ts`), which rolls per case whether the referral carries a suspicion and whether it is correct, partial or wrong. The suspicion already sits in the Chief complaint section. The prompt rule in `chief-complaint/gateway.ts` (lines 54 and 56) serves this and stays.
 - No ICD code from AetioMed reaches the letter: the recipe label is text, and the outline never names the true diagnosis outside it.
 - AetioMed's request language is passed as `language`.
+- Transport: AetioMed calls gRPC `RenderLetter` with `no_patient: true`, the letter `language` and the referring physician's name in `sender.name` when the case names one (otherwise `sender` stays empty and is generated), and takes `pdf` from the reply. The MCP tool carries the same fields as `LetterSpec` JSON.
 
 Known gap: the outline prompt (`02-plan/02-outline/gateway.ts:100`) only asks "who referred, when, and the reason", so `findings` is often empty. Fixing this is future work in AetioMed (issue #9).
 
@@ -350,10 +375,10 @@ Known gap: the outline prompt (`02-plan/02-outline/gateway.ts:100`) only asks "w
 uv run pytest
 uv run ruff check
 uv run ruff format
-uv run pyright          # checks src/ only
+uv run pyright          # checks src/ only, not the generated src/aetioreferral/v1
 ```
 
-All tests live in `tests/test_service.py` (12 tests). They go through the core interface, not through internals, and use the real Typst compile. The PDF text is extracted with `pypdf` and asserted on. The LLM is replaced by a `FakeDrafter` implementing the `Drafter` protocol. The MCP server is exercised with the in-memory `mcp.Client`. An autouse fixture changes into a temp directory and clears the `LLM_*` variables, so a developer's `.env` cannot leak into the tests.
+All tests live in `tests/test_service.py` (17 tests). They go through the core interface, not through internals, and use the real Typst compile. The PDF text is extracted with `pypdf` and asserted on. The LLM is replaced by a `FakeDrafter` implementing the `Drafter` protocol. The MCP server is exercised with the in-memory `mcp.Client`, the gRPC server with an in-process `grpc.aio` server on an ephemeral port. An autouse fixture changes into a temp directory and clears the `LLM_*` variables, so a developer's `.env` cannot leak into the tests.
 
 Covered:
 
@@ -366,13 +391,14 @@ Covered:
 - `LLM_*` gating: off, partial (names `LLM_PROVIDER`), on, and reading from `.env` with unrelated keys ignored;
 - `generate_letter` with a fake drafter;
 - the MCP render tool returns a PDF blob, the completed letter and the seed; the generate tool exists only with a drafter;
-- the CLI shows `generate` only with LLM configuration.
+- the CLI shows `generate` only with LLM configuration;
+- gRPC: the proto field names match the pydantic models, `RenderLetter` with `no_patient` and a seed is reproducible, a partial patient round-trips, an invalid language is `INVALID_ARGUMENT`, `GenerateLetter` is `UNIMPLEMENTED` without a drafter and renders with one.
 
 Not covered: the real `PydanticAIDrafter` (needs a live model), the HTTP transport, and the CLI `render` stdin path.
 
 ### Continuous integration and releases
 
-`.github/workflows/build.yml` runs on every pull request that touches code, tests, examples, `pyproject.toml`, `uv.lock` or the workflow itself. In order: `uv sync --locked` (fails if `uv.lock` is out of date), `ruff format --check`, `ruff check`, `pyright`, `pytest`, a CLI render of `examples/letter.json` (covers the CLI file path), and `uv build`.
+`.github/workflows/build.yml` runs on every pull request that touches code, tests, examples, `pyproject.toml`, `uv.lock` or the workflow itself. In order: `uv sync --locked` (fails if `uv.lock` is out of date), a freshness check of the generated protobuf code (regenerate and `git diff --exit-code`), `ruff format --check`, `ruff check`, `pyright`, `pytest`, a CLI render of `examples/letter.json` (covers the CLI file path), and `uv build`.
 
 `.github/workflows/package.yml` runs on pull requests to `main` that touch `src/`, `pyproject.toml`, `uv.lock`, the `Dockerfile` or the workflow, and is reusable through `workflow_call` with a `version` input. It sets the version with `uv version <version> --no-sync` (which re-locks, so `uv sync --locked` in the image still passes), builds the wheel and sdist, builds the Docker image, smoke-tests it by rendering `examples/letter.json` through stdin and stdout, and uploads the image tar and the Python distributions as artifacts.
 
@@ -380,7 +406,7 @@ Not covered: the real `PydanticAIDrafter` (needs a live model), the HTTP transpo
 
 ### Docker image
 
-The `Dockerfile` has two stages. The build stage is `debian:trixie-slim` with Debian's own Python 3.13 and a pinned uv binary; it runs `uv sync --locked --no-dev --no-editable` into `/app/.venv`, dependencies first for layer caching. The runtime stage is `gcr.io/distroless/python3-debian13:nonroot`: Python 3.13, no shell, no package manager, non-root user. Both stages use `/usr/bin/python3.13`, so the virtual environment's interpreter link stays valid when copied. The entry point is the `aetioreferral` CLI; the default command is `mcp --http --host 0.0.0.0 --port 8000`. LLM settings come from `-e` or `--env-file`; the image contains no `.env`.
+The `Dockerfile` has two stages. The build stage is `debian:trixie-slim` with Debian's own Python 3.13 and a pinned uv binary; it runs `uv sync --locked --no-dev --no-editable` into `/app/.venv`, dependencies first for layer caching. The runtime stage is `gcr.io/distroless/python3-debian13:nonroot`: Python 3.13, no shell, no package manager, non-root user. Both stages use `/usr/bin/python3.13`, so the virtual environment's interpreter link stays valid when copied. The entry point is the `aetioreferral` CLI; the default command is `mcp --http --host 0.0.0.0 --port 8000`; port 50051 is exposed for `grpc --host 0.0.0.0`. LLM settings come from `-e` or `--env-file`; the image contains no `.env`.
 
 ## Design decisions
 
@@ -388,7 +414,7 @@ The full list with reasoning is in the tracking issue, [#22](https://github.com/
 
 | Decision | Reason |
 | --- | --- |
-| The core is two async functions | Small enough to call from anywhere; CLI and MCP only translate input and output |
+| The core is two async functions | Small enough to call from anywhere; CLI, MCP and gRPC only translate input and output |
 | Sections are plain text | Matches how referral letters are written, easy for an LLM and for callers; no markup to escape |
 | Ports only where something varies | Only the Drafter has two implementations and an off state; Faker and Typst are tested for real |
 | pydantic-ai for the LLM | One structured-output API across providers, with validation and retries |
