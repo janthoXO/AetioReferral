@@ -27,14 +27,14 @@ RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-dev --no-edi
 FROM gcr.io/distroless/python3-debian13:nonroot AS runner
 
 LABEL org.opencontainers.image.source="https://github.com/janthoXO/AetioReferral" \
-      org.opencontainers.image.description="Synthetic medical referral letter generator: MCP server and CLI that render referral letters as PDF." \
+      org.opencontainers.image.description="Synthetic medical referral letter generator: MCP server, gRPC server and CLI that render referral letters as PDF." \
       org.opencontainers.image.licenses="MIT"
 
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
 
-EXPOSE 8000
+EXPOSE 8000 50051
 
-# Any CLI command works: `docker run IMAGE render - -o /dev/stdout < letter.json > letter.pdf`.
+# Any CLI command works (`grpc --host 0.0.0.0` serves gRPC on 50051): `docker run IMAGE render - -o /dev/stdout < letter.json > letter.pdf`.
 ENTRYPOINT ["/app/.venv/bin/aetioreferral"]
 CMD ["mcp", "--http", "--host", "0.0.0.0", "--port", "8000"]

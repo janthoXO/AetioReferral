@@ -1,18 +1,22 @@
 import base64
+import contextlib
 import datetime
 import io
 import tomllib
 
+import grpc
 import pytest
 from mcp import Client
 from pypdf import PdfReader
 
-from aetioreferral import cli
+from aetioreferral import cli, grpc_server
 from aetioreferral.config import load_llm_settings
-from aetioreferral.letter import LetterSpec
+from aetioreferral.letter import DoctorIn, LetterSpec, PatientIn
 from aetioreferral.locale import LOCALES_DIR, resolve_language
 from aetioreferral.mcp_server import build_server
 from aetioreferral.service import generate_letter, render_letter
+from aetioreferral.v1 import referral_pb2 as pb
+from aetioreferral.v1.referral_pb2_grpc import ReferralServiceStub
 
 pytestmark = pytest.mark.anyio
 
@@ -146,3 +150,58 @@ def test_cli_generate_only_with_llm_config(monkeypatch, capsys):
     with pytest.raises(SystemExit):
         cli.main(["--help"])
     assert "generate" in capsys.readouterr().out
+
+
+def test_proto_matches_letter_spec():
+    names = lambda d: set(d.fields_by_name)
+    assert names(pb.Letter.DESCRIPTOR) == set(LetterSpec.model_fields) | {"no_patient"}
+    assert names(pb.Patient.DESCRIPTOR) == set(PatientIn.model_fields)
+    assert names(pb.Doctor.DESCRIPTOR) == set(DoctorIn.model_fields)
+
+
+@contextlib.asynccontextmanager
+async def grpc_stub(drafter=None):
+    server = grpc_server.build_server(drafter)
+    port = server.add_insecure_port("127.0.0.1:0")
+    await server.start()
+    try:
+        async with grpc.aio.insecure_channel(f"127.0.0.1:{port}") as channel:
+            yield ReferralServiceStub(channel)
+    finally:
+        await server.stop(None)
+
+
+async def test_grpc_render_no_patient_and_seed():
+    letter = pb.Letter(recipient_specialty="Kardiologie", reason="Belastungsdyspnoe", no_patient=True, date="2026-10-20")
+    async with grpc_stub() as stub:
+        first = await stub.RenderLetter(pb.RenderLetterRequest(letter=letter, seed=3))
+        again = await stub.RenderLetter(pb.RenderLetterRequest(letter=letter, seed=3))
+    assert first.pdf.startswith(b"%PDF") and first.seed == 3
+    assert first.letter.no_patient and not first.letter.HasField("patient")
+    assert first.letter.sender.name and first.letter.sender.identifiers["LANR"]
+    assert pdf_text(first.pdf) == pdf_text(again.pdf) and first.letter == again.letter
+
+
+async def test_grpc_partial_patient_round_trip():
+    letter = pb.Letter(recipient_specialty="Kardiologie", reason="x", patient=pb.Patient(sex=pb.SEX_FEMALE, age=40))
+    async with grpc_stub() as stub:
+        reply = await stub.RenderLetter(pb.RenderLetterRequest(letter=letter))
+    assert reply.letter.patient.sex == pb.SEX_FEMALE and reply.letter.patient.name and reply.letter.patient.birth_date
+    assert not reply.letter.no_patient
+
+
+async def test_grpc_errors():
+    bad = pb.Letter(recipient_specialty="Kardiologie", reason="x", language="xx")
+    async with grpc_stub() as stub:
+        with pytest.raises(grpc.aio.AioRpcError) as err:
+            await stub.RenderLetter(pb.RenderLetterRequest(letter=bad))
+        assert err.value.code() == grpc.StatusCode.INVALID_ARGUMENT
+        with pytest.raises(grpc.aio.AioRpcError) as err:
+            await stub.GenerateLetter(pb.GenerateLetterRequest(description="x"))
+        assert err.value.code() == grpc.StatusCode.UNIMPLEMENTED
+
+
+async def test_grpc_generate_with_fake_drafter():
+    async with grpc_stub(FakeDrafter()) as stub:
+        reply = await stub.GenerateLetter(pb.GenerateLetterRequest(description="Abklärung Belastungsdyspnoe", seed=1))
+    assert reply.pdf.startswith(b"%PDF") and reply.letter.recipient_specialty == "Kardiologie"

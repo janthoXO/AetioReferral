@@ -1,6 +1,6 @@
 # AetioReferral: Synthetic Medical Referral Letter Generator
 
-**AetioReferral is an open-source Python MCP server and CLI that generates realistic synthetic medical referral letters as PDF: a German Überweisungsbrief (Arztbrief) from a general practitioner to a specialist, or the same letter in any other language with a locale file. It is built for medical education, virtual-patient platforms and document-AI datasets.**
+**AetioReferral is an open-source Python MCP server, gRPC server and CLI that generates realistic synthetic medical referral letters as PDF: a German Überweisungsbrief (Arztbrief) from a general practitioner to a specialist, or the same letter in any other language with a locale file. It is built for medical education, virtual-patient platforms and document-AI datasets.**
 
 [![Build](https://github.com/janthoXO/AetioReferral/actions/workflows/build.yml/badge.svg)](https://github.com/janthoXO/AetioReferral/actions/workflows/build.yml)
 ![Python 3.13](https://img.shields.io/badge/python-3.13-blue)
@@ -48,7 +48,7 @@ Rendered from [`examples/letter.json`](examples/letter.json) with `--seed 7`. Ev
 - **Reproducible**: the same input and seed always produce the same letter, and every result returns its seed.
 - **Language-agnostic**: every label and phrase the service adds lives in one locale file per language. German and English are included.
 - **Optional LLM**: Anthropic, OpenAI, Google Gemini, OpenRouter, Ollama or any other pydantic-ai provider, configured by environment variables or a `.env` file. Without an LLM, the generate path does not exist at all.
-- **Two interfaces**: an MCP server (stdio or streamable HTTP) for LLM clients and agents, and a command-line tool for scripts.
+- **Three interfaces**: an MCP server (stdio or streamable HTTP) for LLM clients and agents, a gRPC server with a protobuf contract (`proto/aetioreferral/v1/referral.proto`) for typed clients and services, and a command-line tool for scripts.
 
 ## Use Cases
 
@@ -104,6 +104,8 @@ Every release publishes an image to GitHub Container Registry, built on a distro
 ```sh
 docker run --rm -p 8000:8000 --env-file .env ghcr.io/janthoxo/aetioreferral/server
 ```
+
+For gRPC on port 50051 (plaintext, no authentication) run `docker run --rm -p 50051:50051 ghcr.io/janthoxo/aetioreferral/server grpc --host 0.0.0.0`.
 
 Any CLI command works too, for example rendering from stdin to stdout:
 
@@ -176,7 +178,7 @@ Sender and recipient work the same way, except that they cannot be set to `null`
 
 ### What is AetioReferral?
 
-AetioReferral is an open-source Python tool that generates synthetic medical referral letters as PDF. It runs as an MCP server and as a CLI, takes structured JSON or a free-text description, and lays the letter out like a real German Überweisungsbrief.
+AetioReferral is an open-source Python tool that generates synthetic medical referral letters as PDF. It runs as an MCP server, a gRPC server and a CLI, takes structured JSON or a free-text description, and lays the letter out like a real German Überweisungsbrief.
 
 ### What is an Überweisungsbrief?
 

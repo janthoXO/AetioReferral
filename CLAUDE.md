@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-AetioReferral renders synthetic medical referral letters (German Überweisungsbrief baseline) as PDF, exposed as an MCP server and a CLI. `README.md` is the user overview, `README-DEV.md` the full technical reference; the design decisions and roadmap live in GitHub issue #22.
+AetioReferral renders synthetic medical referral letters (German Überweisungsbrief baseline) as PDF, exposed as an MCP server, a gRPC server and a CLI. `README.md` is the user overview, `README-DEV.md` the full technical reference; the design decisions and roadmap live in GitHub issue #22.
 
 ## Commands
 
@@ -11,20 +11,23 @@ uv sync                                              # install (Python 3.13, dep
 uv run pytest                                        # all tests
 uv run pytest tests/test_service.py::test_same_seed_same_letter   # one test
 uv run ruff format && uv run ruff check              # format + lint (line length 140)
-uv run pyright                                       # type check; covers src/ only
+uv run pyright                                       # type check; covers src/ only (not the generated v1/)
 uv run aetioreferral render examples/letter.json -o letter.pdf --seed 7
 uv run aetioreferral mcp [--http]                    # MCP server, stdio or streamable HTTP on 127.0.0.1:8000/mcp
+uv run aetioreferral grpc                            # gRPC server on 127.0.0.1:50051
+uv run python -m grpc_tools.protoc -Iproto --python_out=src --pyi_out=src --grpc_python_out=src proto/aetioreferral/v1/referral.proto   # regenerate src/aetioreferral/v1 after editing the proto
 docker build -t aetioreferral .                      # distroless runtime image
 ```
 
-CI (`.github/workflows/build.yml`) runs `uv sync --locked`, `ruff format --check`, `ruff check`, `pyright`, `pytest`, a CLI render and `uv build`; keep all of them green.
+CI (`.github/workflows/build.yml`) runs `uv sync --locked`, `ruff format --check`, `ruff check`, `pyright`, `pytest`, a protobuf freshness check, a CLI render and `uv build`; keep all of them green.
 
 ## Architecture
 
 Ports and adapters with one deep core module:
 
-- `service.py` is the whole core interface: `render_letter(spec, seed)` and `generate_letter(description, drafter, language, seed)`. Both CLI (`cli.py`) and MCP (`mcp_server.py`) are thin driving adapters over these two functions.
-- The only port is `Drafter` (`drafter.py`): `PydanticAIDrafter` in production, a fake in tests. It exists only when `LLM_PROVIDER` and `LLM_MODEL` are set (env or `.env` in the working directory, see `config.py`); otherwise the `generate` CLI subcommand and the `generate_referral_letter` MCP tool are not registered at all. That is why `cli.py` has two root command classes (`App`, `AppWithGenerate`).
+- `service.py` is the whole core interface: `render_letter(spec, seed)` and `generate_letter(description, drafter, language, seed)`. CLI (`cli.py`), MCP (`mcp_server.py`) and gRPC (`grpc_server.py`) are thin driving adapters over these two functions.
+- The only port is `Drafter` (`drafter.py`): `PydanticAIDrafter` in production, a fake in tests. It exists only when `LLM_PROVIDER` and `LLM_MODEL` are set (env or `.env` in the working directory, see `config.py`); otherwise the `generate` CLI subcommand and the `generate_referral_letter` MCP tool are not registered at all; the gRPC `GenerateLetter` answers `UNIMPLEMENTED`. That is why `cli.py` has two root command classes (`App`, `AppWithGenerate`).
+- `grpc_server.py` serves `proto/aetioreferral/v1/referral.proto` on `grpc.aio`. `Letter` mirrors `LetterSpec` (+ `no_patient`); two functions convert via `json_format`. `src/aetioreferral/v1/` is generated and committed (CI checks it is current); a test keeps proto and pydantic field names equal, so a new `LetterSpec` field needs a proto field too.
 - Render flow: `identities.fill(spec, seed)` fills every missing patient/sender/recipient field with seeded Faker (given fields always win, `patient: null` means no patient block) → `render.view(letter)` turns the complete letter plus locale into ready-made strings → `typst.compile` with that JSON in `sys_inputs`. Faker and Typst are internal, not ports; tests run real Typst.
 - `template/letter.typ` contains no words and never evaluates data strings (caller text must not become Typst markup). Every word the service adds comes from `locales/<lang>.toml`.
 - `LetterSpec` (`letter.py`) is the input contract and, via its `Field(description=...)`s, the MCP tool schema LLM clients see. All sections are plain text.

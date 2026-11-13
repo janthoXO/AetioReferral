@@ -29,6 +29,11 @@ jobs:
         # --locked fails when uv.lock is out of date with pyproject.toml.
         run: uv sync --locked
 
+      - name: Check generated protobuf code is current
+        run: |
+          uv run python -m grpc_tools.protoc -Iproto --python_out=src --pyi_out=src --grpc_python_out=src proto/aetioreferral/v1/referral.proto
+          git diff --exit-code src/aetioreferral/v1
+
       - name: Check formatting
         run: uv run ruff format --check
 

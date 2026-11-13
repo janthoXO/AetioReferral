@@ -1,6 +1,6 @@
 # AetioReferral
 
-> AetioReferral is an open-source Python service that generates synthetic medical referral letters as PDF. The baseline is the German Überweisungsbrief (Arztbrief from a general practitioner to a specialist); any language works once it has a locale file. It runs as an MCP server for LLM clients and as a command-line tool. Callers either pass the letter content as structured JSON, or pass a free-text description and let a configured LLM write the letter.
+> AetioReferral is an open-source Python service that generates synthetic medical referral letters as PDF. The baseline is the German Überweisungsbrief (Arztbrief from a general practitioner to a specialist); any language works once it has a locale file. It runs as an MCP server for LLM clients, as a gRPC server with a protobuf contract and as a command-line tool. Callers either pass the letter content as structured JSON, or pass a free-text description and let a configured LLM write the letter.
 
 Key facts:
 
@@ -11,10 +11,10 @@ Key facts:
 - Reproducible: the same input and seed produce the same letter.
 - Languages: German (`de`) and English (`en`); one TOML locale file per language, region tags fall back to the base language.
 - LLM (optional): any pydantic-ai provider via `LLM_PROVIDER`, `LLM_MODEL`, `LLM_URL`, `LLM_API_KEY` or a `.env` file, e.g. Anthropic, OpenAI, Google Gemini, OpenRouter, Ollama. Without it, the free-text generate path does not exist.
-- Interfaces: MCP tools `render_referral_letter` and `generate_referral_letter` (stdio or streamable HTTP); CLI commands `render`, `generate`, `mcp`.
+- Interfaces: MCP tools `render_referral_letter` and `generate_referral_letter` (stdio or streamable HTTP); gRPC service `aetioreferral.v1.ReferralService` (`RenderLetter`, `GenerateLetter`, plaintext, port 50051); CLI commands `render`, `generate`, `mcp`, `grpc`.
 - License: MIT.
-- Distribution: Docker image `ghcr.io/janthoxo/aetioreferral/server` (distroless, MCP over HTTP on port 8000 by default); wheel and sdist attached to GitHub releases.
-- Stack: Python 3.13, uv, pydantic, pydantic-settings, pydantic-ai, official MCP Python SDK, Typst, Faker.
+- Distribution: Docker image `ghcr.io/janthoxo/aetioreferral/server` (distroless, MCP over HTTP on port 8000 by default, gRPC on 50051 via `grpc --host 0.0.0.0`); wheel and sdist attached to GitHub releases.
+- Stack: Python 3.13, uv, pydantic, pydantic-settings, pydantic-ai, official MCP Python SDK, grpcio, Typst, Faker.
 - Sister project: AetioMed (https://github.com/janthoXO/AetioMed), an LLM-based synthetic medical case generator that embeds these letters in its chief complaint.
 
 ## Docs
@@ -25,6 +25,7 @@ Key facts:
 ## API
 
 - [Letter schema](https://github.com/janthoXO/AetioReferral/blob/main/src/aetioreferral/letter.py): pydantic `LetterSpec`, the input of `render_referral_letter`
+- [gRPC contract](https://github.com/janthoXO/AetioReferral/blob/main/proto/aetioreferral/v1/referral.proto): protobuf `ReferralService`, `Letter` mirrors `LetterSpec`
 - [Example input](https://github.com/janthoXO/AetioReferral/blob/main/examples/letter.json): a complete German referral letter request
 - [German locale](https://github.com/janthoXO/AetioReferral/blob/main/src/aetioreferral/locales/de.toml): every label and phrase the service adds itself
 
